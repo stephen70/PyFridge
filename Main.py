@@ -25,7 +25,7 @@ blocks = [
     MagnetBlock('Burgundy', '371C04', 100),
     MagnetBlock('Light Green', 'AAD82C', 100),
     MagnetBlock('Green', '23950F', 100),
-    MagnetBlock('Pink', 'B97C72', 100),
+    MagnetBlock('Salmon', 'FF9696', 100),
     MagnetBlock('Purple', '2C1A2C', 100),
     MagnetBlock('Turquoise', 'ACEBDD', 100),
     MagnetBlock('Light Blue', '4F6A91', 100),
@@ -54,7 +54,7 @@ def color_distance(hex1, hex2):
     lab1 = color_conversions.convert_color(rgb1, color_objects.LabColor)
     lab2 = color_conversions.convert_color(rgb2, color_objects.LabColor)
 
-    distance = int(color_diff.delta_e_cie2000(lab1, lab2))
+    distance = int(color_diff.delta_e_cie1994(lab1, lab2))
     return distance
 
 
@@ -63,8 +63,8 @@ def test_size(test_image):
     test_blocks = copy.deepcopy(blocks)
 
     for pixel in itertools.product(range(width), range(height)):
-        rgb = test_image.getpixel(xy=(pixel))
-        if len(rgb) == 4 and rgb[3] == 0:
+        rgb = test_image.getpixel(xy=pixel)
+        if original_img.format == "PNG" and rgb[-1] == 0:
             # skip if transparent pixel
             continue
         hex = rgb_to_hex(rgb[:3])
@@ -81,14 +81,15 @@ def test_size(test_image):
 
     return True
 
-original_img = Image.open("Images/bitcoin.png")
+original_img = Image.open("Images/starry_starry_night.jpg")
 original_width, original_height = original_img.size
 img_ratio = original_width / original_height
 
 width, height = (10 * img_ratio), 10
 previous_img = original_img.resize((int(width), height))
 while True:
-    test_img = original_img.resize((int(width), height))
+    # best resample methods are Nearest and Hamming, to preserve blockiness and stop colors being mushed together
+    test_img = original_img.resize((int(width), height), resample=Image.NEAREST)
     print(f"Testing width {int(width)} and height {height}...")
     fit_successful = test_size(test_img)
     if fit_successful:
@@ -100,3 +101,4 @@ while True:
         break
 
 finished_img.show()
+a = 1
