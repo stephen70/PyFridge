@@ -1,8 +1,14 @@
+import colormath
 import numpy
 import pandas
 from PIL import Image
 import math
 import itertools
+import copy
+
+from colormath import color_objects
+from colormath import color_diff
+from colormath import color_conversions
 
 class MagnetBlock(object):
     def __init__(self, color, hexcolor, number):
@@ -12,15 +18,18 @@ class MagnetBlock(object):
 
 
 blocks = [
-    MagnetBlock('Lime','B8E933', 100),
+    MagnetBlock('Lime','C2F636', 100),
     MagnetBlock('Black', '000000', 200),
     MagnetBlock('White', 'FFFFFF', 100),
     MagnetBlock('Orange', 'A9570D', 100),
     MagnetBlock('Burgundy', '371C04', 100),
+    MagnetBlock('Light Green', 'AAD82C', 100),
     MagnetBlock('Green', '23950F', 100),
     MagnetBlock('Pink', 'B97C72', 100),
     MagnetBlock('Purple', '2C1A2C', 100),
-    MagnetBlock('Blue', '4F6A91', 100),
+    MagnetBlock('Turquoise', 'ACEBDD', 100),
+    MagnetBlock('Light Blue', '4F6A91', 100),
+    MagnetBlock('Dark Blue', '315992', 100),
     MagnetBlock('Light Grey', 'F6F6F6', 100),
     MagnetBlock('Dark Grey', '888888', 100),
     MagnetBlock('Brown', '533C34', 100)
@@ -38,33 +47,56 @@ def hex_to_rgb(hex):
     b = int(hex[4:6], 16) # blue color value
     return (r, g, b)
 
-def color_distance(color1, color2):
-    r1, g1, b1 = hex_to_rgb(color1)
-    r2, g2, b2 = hex_to_rgb(color2)
+def color_distance(hex1, hex2):
+    rgb1 = color_objects.sRGBColor.new_from_rgb_hex(f"#{hex1}")
+    rgb2 = color_objects.sRGBColor.new_from_rgb_hex(f"#{hex2}")
 
-    # no need to take square root, for efficiency
+    lab1 = color_conversions.convert_color(rgb1, color_objects.LabColor)
+    lab2 = color_conversions.convert_color(rgb2, color_objects.LabColor)
 
-    distance = (r2 - r1) ** 2 + (g2 - g1) ** 2 + (b2 - b1) ** 2
+    distance = int(color_diff.delta_e_cie2000(lab1, lab2))
     return distance
 
-img = Image.open("Images/girl_with_a_pearl_earring.jpg")
 
-# first downsize image for efficiency, wont be using a 1920x1080 image
-# then map each pixel to its nearest neighbour
-img_small = img.resize((100, 100))
+def test_size(test_image):
+    width, height = test_image.size
+    test_blocks = copy.deepcopy(blocks)
 
-width, height = img_small.size
+    for pixel in itertools.product(range(width), range(height)):
+        rgb = test_image.getpixel(xy=(pixel))
+        if len(rgb) == 4 and rgb[3] == 0:
+            # skip if transparent pixel
+            continue
+        hex = rgb_to_hex(rgb[:3])
 
-for pixel in itertools.product(range(width), range(height)):
-    print(pixel)
-    rgb = img_small.getpixel(xy=(pixel))
-    hex = rgb_to_hex(rgb)
+        replacement_block = min(test_blocks, key=lambda x: color_distance(hex, x.hexcolor))
 
-    distances = [(color_distance(hex, block_color), block_color) for block_color in block_colors]
-    distances = sorted(distances, key=lambda x: x[0])
-    new_color_hex = distances[0][1]
-    new_color_rgb = hex_to_rgb(new_color_hex)
+        if replacement_block.number == 0:
+            print(f"Out of color {replacement_block.color}!")
+            return False
+        else:
+            replacement_block.number -= 1
+            new_color_rgb = hex_to_rgb(replacement_block.hexcolor)
+            test_image.putpixel(xy=(pixel), value=new_color_rgb)
 
-    img_small.putpixel(xy=(pixel), value=new_color_rgb)
+    return True
 
-img_small.show()
+original_img = Image.open("Images/bitcoin.png")
+original_width, original_height = original_img.size
+img_ratio = original_width / original_height
+
+width, height = (10 * img_ratio), 10
+previous_img = original_img.resize((int(width), height))
+while True:
+    test_img = original_img.resize((int(width), height))
+    print(f"Testing width {int(width)} and height {height}...")
+    fit_successful = test_size(test_img)
+    if fit_successful:
+        height += 2
+        width += 2 * img_ratio
+        previous_img = test_img
+    else:
+        finished_img = previous_img
+        break
+
+finished_img.show()
